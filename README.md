@@ -8,5 +8,5 @@
 
 ```
 pip3 install tqdm
-python main.py
+python src/main.py
 ```
