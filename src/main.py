@@ -3,12 +3,14 @@ from __future__ import annotations
 import heapq
 import io
 import os
+import shutil
 import struct
 from collections import Counter, deque
 from functools import total_ordering
 from math import ceil
 from os import PathLike
 from pathlib import Path
+from time import perf_counter
 
 import tqdm
 
@@ -295,7 +297,7 @@ def encode(
         fsize = os.path.getsize(f)
         step = ceil(fsize / 1024 / 1000)
 
-        # 逐块编码（1kb 为一块）
+        # 逐块编码（1KB 为一块）
         for block in iter(lambda: fin.read(1024), b""):
             block_bytes, remain = encode_block(remain, block, code_map)
             fout.write(block_bytes)
@@ -335,7 +337,7 @@ def decode(
         # 初始化进度条
         progress = tqdm.tqdm(total=1000)
         fsize = os.path.getsize(f)
-        step = int(fsize / 1000) / 2
+        step = ceil(fsize / 1024 / 1000 / 2)
 
         # 两个字节为一块，逐块解码
         # 不足两字节时，后一字节为空，此时我们就知道第一字节为末字节
@@ -359,7 +361,7 @@ def decode(
                     symbols.append(cur.symbol)
                     cur = root
 
-            # 缓存解码结果，每 1024 个符号（1kb）写入一次文件
+            # 缓存解码结果，每 1024 个符号（1KB）写入一次文件
             if len(symbols) >= 1024:
                 fout.write(bytes(symbols))
                 symbols.clear()
@@ -375,5 +377,58 @@ def decode(
         progress.close()
 
 
-encode("text.txt", "text.huf")
-decode("text.huf", "text.out.txt")
+def test(file: str, huf_file: str, out_flie: str) -> None:
+    """测试函数
+
+    :param file: 文件路径
+    :param huf_file: 编码生成文件的路径
+    :param out_flie: 解码生成文件的路径
+    """
+    fname = file
+    huf_fname = huf_file
+    out_fname = out_flie
+
+    print(f"开始编码 {fname}")
+    start = perf_counter()
+    encode(fname, huf_fname)
+    duration = perf_counter() - start
+
+    fsize1 = os.path.getsize(fname)
+    fsize2 = os.path.getsize(huf_fname)
+    print(
+        f"编码完成，压缩率：{(fsize1-fsize2)/fsize1:.2f}，"
+        f"耗时：{duration:.2f} 秒，"
+        f"速率：{fsize1 / duration / 1024:.2f} KB/s"
+    )
+
+    print(f"开始解码 {fname}")
+    start = perf_counter()
+    decode(huf_fname, out_fname)
+    duration = perf_counter() - start
+
+    fsize1 = os.path.getsize(huf_fname)
+    fsize2 = os.path.getsize(out_fname)
+    print(
+        f"解码完成，耗时：{duration:.2f} 秒，"
+        f"速率：{fsize1 / duration / 1024:.2f} KB/s"
+    )
+    print()
+
+
+if __name__ == "__main__":
+    os.chdir(str(Path(__file__).parent.resolve()))
+    try:
+        shutil.rmtree("huf")
+    except FileNotFoundError:
+        pass
+    try:
+        shutil.rmtree("out")
+    except FileNotFoundError:
+        pass
+
+    os.mkdir("huf")
+    os.mkdir("out")
+
+    test("test.txt", "./huf/txt.huf", "./out/out.txt")
+    test("test.bmp", "./huf/bmp.huf", "./out/out.bmp")
+    test("test.wav", "./huf/wav.huf", "./out/out.wav")
