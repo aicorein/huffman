@@ -10,3 +10,5 @@
 pip3 install tqdm
 python src/main.py
 ```
+
+> 主要参考：https://zhuanlan.zhihu.com/p/72044095
